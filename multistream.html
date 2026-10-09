@@ -57,6 +57,28 @@ aside p.hint{font-size:12px;color:var(--muted);margin:0 0 10px}
 .tag button{border:0;border-radius:6px;padding:4px 8px;font:inherit;font-size:12px;background:rgba(0,0,0,.75);color:#fff;cursor:pointer}
 .empty{grid-column:1/-1;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:24px}
 .empty b{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
+.spacer{flex:1}
+.auth{display:flex;gap:8px;align-items:center}
+.me{font-size:13px;color:var(--muted)}
+.btn{font:inherit;font-weight:600;padding:8px 14px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer}
+.btn.tw{background:var(--twitch);border-color:var(--twitch);color:#fff}
+.sec{margin-bottom:18px}
+.live{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font:inherit;padding:7px 8px;border-radius:8px;border:1px solid transparent;background:transparent;color:var(--text);cursor:pointer;margin-bottom:2px}
+.live:hover{background:var(--bg)}
+.live[aria-pressed="true"]{border-color:var(--text);background:var(--bg)}
+.live .info{min-width:0;flex:1}
+.live .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live .gm{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.live .vw{font-size:12px;color:var(--muted);flex:none}
+.redd{width:8px;height:8px;border-radius:50%;background:#e5384f;flex:none}
+dialog{border:1px solid var(--line);border-radius:12px;background:var(--panel);color:var(--text);max-width:480px;width:calc(100% - 32px);padding:20px}
+dialog::backdrop{background:rgba(0,0,0,.55)}
+dialog h3{margin:0 0 8px}
+dialog ol{padding-left:20px;line-height:1.65;margin:10px 0}
+dialog code{background:var(--bg);padding:2px 6px;border-radius:4px;word-break:break-all;font-size:13px}
+dialog a{color:var(--twitch)}
+dialog input{width:100%;margin:6px 0 14px}
+.row{display:flex;gap:8px;justify-content:flex-end}
 @media (max-width:760px){
   main{flex-direction:column}
   aside{width:100%;border-right:0;border-bottom:1px solid var(--line);max-height:34%}
@@ -75,15 +97,37 @@ aside p.hint{font-size:12px;color:var(--muted);margin:0 0 10px}
     <input id="name" placeholder="Streamerns namn" autocomplete="off" aria-label="Streamerns namn">
     <button class="add" type="submit">Lägg till</button>
   </form>
+  <div class="spacer"></div>
+  <div class="auth" id="auth"></div>
 </header>
 <main>
   <aside>
+    <div class="sec" id="followed" hidden>
+      <h2>Du följer · live nu</h2>
+      <div id="flist"></div>
+    </div>
     <h2>Dina streamers</h2>
     <p class="hint">Klicka på ett namn för att visa eller dölja streamen.</p>
     <div id="list"></div>
   </aside>
   <section id="grid" aria-live="polite"></section>
 </main>
+<dialog id="setup">
+  <h3>Koppla ditt Twitch-konto</h3>
+  <p style="margin:0;color:var(--muted)">Twitch kräver att du skapar en gratis app en gång. Det tar ungefär två minuter.</p>
+  <ol>
+    <li>Gå till <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv/console/apps</a> och klicka på <b>Register Your Application</b>.</li>
+    <li>Välj valfritt namn. Skriv in den här adressen under <b>OAuth Redirect URLs</b> och klicka på Add: <code id="redir"></code></li>
+    <li>Category: <b>Website Integration</b>. Client Type: <b>Public</b>. Klicka på Create.</li>
+    <li>Klicka på <b>Manage</b> vid din nya app och kopiera <b>Client ID</b>.</li>
+  </ol>
+  <label for="cid">Klistra in Client ID här</label>
+  <input id="cid" autocomplete="off" spellcheck="false">
+  <div class="row">
+    <button type="button" class="btn" id="cancel">Avbryt</button>
+    <button type="button" class="btn tw" id="savecid">Spara och logga in</button>
+  </div>
+</dialog>
 <script>
 (function(){
   var KEY="multistream-v1";
@@ -188,8 +232,112 @@ aside p.hint{font-size:12px;color:var(--muted);margin:0 0 10px}
     Array.prototype.slice.call(grid.querySelectorAll(".empty")).forEach(function(e){grid.removeChild(e)});
   }
 
-  function render(){renderList();renderGrid();}
-  render();
+  /* ---------- Twitch-inloggning ---------- */
+  var AUTHKEY="multistream-auth-v1",CIDKEY="multistream-cid-v1";
+  var cid="",auth=null,followed=[],followedErr="";
+  try{cid=localStorage.getItem(CIDKEY)||"";}catch(e){}
+  try{auth=JSON.parse(localStorage.getItem(AUTHKEY)||"null");}catch(e){}
+  if(auth&&(!auth.exp||auth.exp<Date.now()))auth=null;
+  var redirect=location.origin+location.pathname;
+
+  function saveAuth(){try{if(auth)localStorage.setItem(AUTHKEY,JSON.stringify(auth));else localStorage.removeItem(AUTHKEY);}catch(e){}}
+
+  (function(){
+    if(location.hash.indexOf("access_token")<0)return;
+    var h=new URLSearchParams(location.hash.slice(1));
+    var st=null;try{st=sessionStorage.getItem("multistream-state");}catch(e){}
+    if(h.get("access_token")&&st&&h.get("state")===st){
+      auth={token:h.get("access_token"),exp:Date.now()+(parseInt(h.get("expires_in"),10)||3600)*1000,cid:cid};
+      saveAuth();
+    }
+    history.replaceState(null,"",location.pathname+location.search);
+  })();
+
+  function login(){
+    if(!cid){openSetup();return;}
+    var a=new Uint8Array(16);crypto.getRandomValues(a);
+    var st=Array.prototype.map.call(a,function(b){return b.toString(16).padStart(2,"0")}).join("");
+    try{sessionStorage.setItem("multistream-state",st);}catch(e){}
+    location.href="https://id.twitch.tv/oauth2/authorize?client_id="+encodeURIComponent(cid)+
+      "&redirect_uri="+encodeURIComponent(redirect)+"&response_type=token&scope="+encodeURIComponent("user:read:follows")+"&state="+st;
+  }
+  function logout(){auth=null;followed=[];followedErr="";saveAuth();renderAuth();renderFollowed();}
+
+  function openSetup(){
+    $("redir").textContent=redirect;
+    $("cid").value=cid;
+    var d=$("setup");
+    if(d.showModal)d.showModal();else d.setAttribute("open","");
+  }
+  $("cancel").addEventListener("click",function(){$("setup").close()});
+  $("savecid").addEventListener("click",function(){
+    var v=$("cid").value.trim();
+    if(!v){$("cid").focus();return;}
+    cid=v;try{localStorage.setItem(CIDKEY,cid);}catch(e){}
+    $("setup").close();login();
+  });
+
+  function api(path){
+    return fetch("https://api.twitch.tv/helix/"+path,{headers:{"Authorization":"Bearer "+auth.token,"Client-Id":auth.cid||cid}}).then(function(r){
+      if(r.status===401){logout();throw new Error("Inloggningen har gått ut. Logga in igen.");}
+      if(!r.ok)throw new Error("Twitch svarade med fel "+r.status+".");
+      return r.json();
+    });
+  }
+  function loadFollowed(){
+    if(!auth)return;
+    var p=auth.id?Promise.resolve():api("users").then(function(d){
+      var u=d.data&&d.data[0];if(!u)throw new Error("Kunde inte hämta ditt konto.");
+      auth.id=u.id;auth.login=u.display_name;saveAuth();
+    });
+    p.then(function(){return api("streams/followed?user_id="+auth.id+"&first=100");})
+     .then(function(d){followed=d.data||[];followedErr="";renderAuth();renderFollowed();})
+     .catch(function(e){if(auth){followedErr=e.message||"Något gick fel.";renderFollowed();}});
+  }
+  setInterval(loadFollowed,60000);
+
+  function renderAuth(){
+    var box=$("auth");box.textContent="";
+    var gear=document.createElement("button");gear.type="button";gear.className="btn";gear.textContent="Twitch-inställningar";
+    gear.addEventListener("click",openSetup);
+    if(auth){
+      var me=document.createElement("span");me.className="me";me.textContent=auth.login?"Inloggad som "+auth.login:"Inloggad";
+      var out=document.createElement("button");out.type="button";out.className="btn";out.textContent="Logga ut";
+      out.addEventListener("click",logout);
+      box.appendChild(me);box.appendChild(out);
+    }else{
+      var b=document.createElement("button");b.type="button";b.className="btn tw";b.textContent="Logga in med Twitch";
+      b.addEventListener("click",login);
+      box.appendChild(b);box.appendChild(gear);
+    }
+  }
+
+  function pickLive(s){
+    var x={p:"twitch",n:s.user_login};
+    if(!state.streamers.some(function(y){return id(y)===id(x)}))state.streamers.push(x);
+    toggle(x);
+  }
+  function renderFollowed(){
+    var box=$("followed"),fl=$("flist");
+    if(!auth){box.hidden=true;return;}
+    box.hidden=false;fl.textContent="";
+    function hint(t){var p=document.createElement("p");p.className="hint";p.textContent=t;fl.appendChild(p);}
+    if(followedErr){hint(followedErr);return;}
+    if(!followed.length){hint("Ingen du följer är live just nu.");return;}
+    followed.forEach(function(s){
+      var b=document.createElement("button");b.type="button";b.className="live";
+      b.setAttribute("aria-pressed",isOn({p:"twitch",n:s.user_login}));
+      b.innerHTML='<span class="redd"></span><span class="info"><div class="nm"></div><div class="gm"></div></span><span class="vw"></span>';
+      b.querySelector(".nm").textContent=s.user_name;
+      b.querySelector(".gm").textContent=s.game_name||"";
+      b.querySelector(".vw").textContent=(s.viewer_count||0).toLocaleString("sv-SE");
+      b.addEventListener("click",function(){pickLive(s)});
+      fl.appendChild(b);
+    });
+  }
+
+  function render(){renderList();renderGrid();renderFollowed();}
+  render();renderAuth();loadFollowed();
 })();
 </script>
 </body>
