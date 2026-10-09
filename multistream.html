@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Multistream</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  --bg:#eef0f6; --panel:#ffffff; --line:#d5d9e6; --text:#1a1d2e; --muted:#636a86;
+  --twitch:#9146ff; --kick:#2fb80f; --danger:#d23b4e;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#121420; --panel:#1b1e2f; --line:#2d3249; --text:#e9eaf3; --muted:#8c93b0;
+    --kick:#53fc18;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121420; --panel:#1b1e2f; --line:#2d3249; --text:#e9eaf3; --muted:#8c93b0; --kick:#53fc18;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--text);font-family:"Sora",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;display:flex;flex-direction:column}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+h1{font-size:17px;margin:0 12px 0 0;font-weight:700}
+form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--muted);padding:8px 14px;font:inherit;font-weight:600;cursor:pointer}
+.seg button[aria-pressed="true"].tw{background:var(--twitch);color:#fff}
+.seg button[aria-pressed="true"].ki{background:var(--kick);color:#0b1a05}
+input{font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);min-width:0;width:200px}
+.add{font:inherit;font-weight:600;padding:8px 16px;border:0;border-radius:8px;background:var(--text);color:var(--bg);cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--twitch);outline-offset:2px}
+main{flex:1;display:flex;min-height:0}
+aside{width:250px;flex:none;border-right:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px}
+aside h2{font-size:13px;margin:0 0 4px;color:var(--muted);font-weight:600}
+aside p.hint{font-size:12px;color:var(--muted);margin:0 0 10px}
+.item{display:flex;align-items:center;gap:6px;margin-bottom:6px}
+.pick{flex:1;display:flex;align-items:center;gap:8px;text-align:left;font:inherit;padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--text);cursor:pointer;min-width:0}
+.pick span.n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick[aria-pressed="true"]{border-color:var(--text);background:var(--bg);font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;flex:none}
+.dot.tw{background:var(--twitch)} .dot.ki{background:var(--kick)}
+.del{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;padding:6px}
+.del:hover{color:var(--danger)}
+#grid{flex:1;display:grid;gap:6px;padding:6px;min-width:0;min-height:0}
+.cell{position:relative;background:#000;border-radius:8px;overflow:hidden;min-height:0}
+.cell iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.cell .tag{position:absolute;top:6px;left:6px;z-index:2;display:flex;gap:6px;opacity:0;transition:opacity .15s}
+.cell:hover .tag,.cell:focus-within .tag{opacity:1}
+.tag button{border:0;border-radius:6px;padding:4px 8px;font:inherit;font-size:12px;background:rgba(0,0,0,.75);color:#fff;cursor:pointer}
+.empty{grid-column:1/-1;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:24px}
+.empty b{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
+@media (max-width:760px){
+  main{flex-direction:column}
+  aside{width:100%;border-right:0;border-bottom:1px solid var(--line);max-height:34%}
+  input{width:140px}
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Multistream</h1>
+  <form id="f">
+    <div class="seg" role="group" aria-label="Plattform">
+      <button type="button" class="tw" data-p="twitch" aria-pressed="true">Twitch</button>
+      <button type="button" class="ki" data-p="kick" aria-pressed="false">Kick</button>
+    </div>
+    <input id="name" placeholder="Streamerns namn" autocomplete="off" aria-label="Streamerns namn">
+    <button class="add" type="submit">Lägg till</button>
+  </form>
+</header>
+<main>
+  <aside>
+    <h2>Dina streamers</h2>
+    <p class="hint">Klicka på ett namn för att visa eller dölja streamen.</p>
+    <div id="list"></div>
+  </aside>
+  <section id="grid" aria-live="polite"></section>
+</main>
+<script>
+(function(){
+  var KEY="multistream-v1";
+  var state={streamers:[],active:[]};
+  var platform="twitch";
+  try{var s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&s.streamers)state=s;}catch(e){}
+  function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+  var host=location.hostname||"localhost";
+  var $=function(id){return document.getElementById(id)};
+  var list=$("list"),grid=$("grid");
+  function id(x){return x.p+":"+x.n}
+  function isOn(x){return state.active.indexOf(id(x))>-1}
+
+  document.querySelectorAll(".seg button").forEach(function(b){
+    b.addEventListener("click",function(){
+      platform=b.dataset.p;
+      document.querySelectorAll(".seg button").forEach(function(o){o.setAttribute("aria-pressed",o===b)});
+      $("name").focus();
+    });
+  });
+
+  $("f").addEventListener("submit",function(e){
+    e.preventDefault();
+    var n=$("name").value.trim().replace(/^.*\//,"").replace(/[^\w-]/g,"").toLowerCase();
+    if(!n)return;
+    var x={p:platform,n:n};
+    if(!state.streamers.some(function(y){return id(y)===id(x)}))state.streamers.push(x);
+    if(!isOn(x))state.active.push(id(x));
+    $("name").value="";
+    save();render();
+  });
+
+  function toggle(x){
+    var i=state.active.indexOf(id(x));
+    if(i>-1)state.active.splice(i,1);else state.active.push(id(x));
+    save();render();
+  }
+  function remove(x){
+    state.streamers=state.streamers.filter(function(y){return id(y)!==id(x)});
+    state.active=state.active.filter(function(a){return a!==id(x)});
+    save();render();
+  }
+
+  function src(x){
+    if(x.p==="twitch")return "https://player.twitch.tv/?channel="+encodeURIComponent(x.n)+"&parent="+encodeURIComponent(host)+"&muted=true&autoplay=true";
+    return "https://player.kick.com/"+encodeURIComponent(x.n)+"?muted=true&autoplay=true";
+  }
+
+  function renderList(){
+    list.textContent="";
+    if(!state.streamers.length){
+      var p=document.createElement("p");p.className="hint";p.textContent="Inga streamers ännu. Lägg till en i fältet högst upp.";
+      list.appendChild(p);return;
+    }
+    state.streamers.forEach(function(x){
+      var row=document.createElement("div");row.className="item";
+      var b=document.createElement("button");b.type="button";b.className="pick";
+      b.setAttribute("aria-pressed",isOn(x));
+      b.innerHTML='<span class="dot '+(x.p==="twitch"?"tw":"ki")+'"></span><span class="n"></span>';
+      b.querySelector(".n").textContent=x.n;
+      b.addEventListener("click",function(){toggle(x)});
+      var d=document.createElement("button");d.type="button";d.className="del";d.textContent="×";
+      d.setAttribute("aria-label","Ta bort "+x.n);
+      d.addEventListener("click",function(){remove(x)});
+      row.appendChild(b);row.appendChild(d);list.appendChild(row);
+    });
+  }
+
+  var cache={};
+  function renderGrid(){
+    var act=state.streamers.filter(isOn);
+    var n=act.length;
+    Array.prototype.slice.call(grid.children).forEach(function(c){
+      if(!c.dataset.id||!act.some(function(x){return id(x)===c.dataset.id}))grid.removeChild(c);
+    });
+    if(!n){
+      cache={};
+      grid.style.gridTemplateColumns="1fr";grid.style.gridTemplateRows="1fr";
+      var e=document.createElement("div");e.className="empty";
+      e.innerHTML="<div><b>Inga streams valda</b>Lägg till en streamer och klicka på namnet i listan för att börja titta.</div>";
+      grid.appendChild(e);return;
+    }
+    var cols=n===1?1:n<=4?2:n<=9?3:4;
+    var rows=Math.ceil(n/cols);
+    grid.style.gridTemplateColumns="repeat("+cols+",1fr)";
+    grid.style.gridTemplateRows="repeat("+rows+",1fr)";
+    act.forEach(function(x){
+      var cid=id(x),cell=cache[cid];
+      if(!cell||!cell.parentNode){
+        cell=document.createElement("div");cell.className="cell";cell.dataset.id=cid;
+        var t=document.createElement("div");t.className="tag";
+        var cl=document.createElement("button");cl.type="button";cl.textContent="Stäng";
+        cl.addEventListener("click",function(){toggle(x)});
+        t.appendChild(cl);
+        var f=document.createElement("iframe");
+        f.src=src(x);f.title=x.n+" på "+(x.p==="twitch"?"Twitch":"Kick");
+        f.allow="autoplay; fullscreen; picture-in-picture";f.allowFullscreen=true;
+        cell.appendChild(t);cell.appendChild(f);cache[cid]=cell;
+      }
+      grid.appendChild(cell);
+    });
+    Array.prototype.slice.call(grid.querySelectorAll(".empty")).forEach(function(e){grid.removeChild(e)});
+  }
+
+  function render(){renderList();renderGrid();}
+  render();
+})();
+</script>
+</body>
+</html>
