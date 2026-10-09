@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -106,12 +106,12 @@ dialog input{width:100%;margin:6px 0 14px}
 <header>
   <h1>Multistream</h1>
   <form id="f">
-    <div class="seg" role="group" aria-label="Plattform">
+    <div class="seg" role="group" aria-label="Platform">
       <button type="button" class="tw" data-p="twitch" aria-pressed="true">Twitch</button>
       <button type="button" class="ki" data-p="kick" aria-pressed="false">Kick</button>
     </div>
-    <input id="name" placeholder="Streamerns namn" autocomplete="off" aria-label="Streamerns namn">
-    <button class="add" type="submit">Lägg till</button>
+    <input id="name" placeholder="Streamer name" autocomplete="off" aria-label="Streamer name">
+    <button class="add" type="submit">Add</button>
   </form>
   <div class="spacer"></div>
   <div class="auth" id="auth"></div>
@@ -119,38 +119,38 @@ dialog input{width:100%;margin:6px 0 14px}
 <main>
   <aside>
     <div class="sec" id="followed" hidden>
-      <h2>Du följer · live nu</h2>
+      <h2>Following · live now</h2>
       <div id="flist"></div>
     </div>
-    <h2>Dina streamers</h2>
-    <p class="hint">Klicka på ett namn för att visa eller dölja streamen.</p>
+    <h2>Your streamers</h2>
+    <p class="hint">Click a name to show or hide that stream.</p>
     <div id="list"></div>
   </aside>
-  <div class="hwrap"><button type="button" class="handle" id="tgSide" aria-label="Visa eller dölj listan till vänster"></button></div>
+  <div class="hwrap"><button type="button" class="handle" id="tgSide" aria-label="Show or hide the list on the left"></button></div>
   <section id="grid" aria-live="polite"></section>
   <div id="chat">
     <div class="ch">
-      <select id="chatsel" aria-label="Välj chatt"></select>
-      <button type="button" class="btn" id="chatx" aria-label="Stäng chatten">Stäng</button>
+      <select id="chatsel" aria-label="Choose chat"></select>
+      <button type="button" class="btn" id="chatx" aria-label="Close chat">Close</button>
     </div>
-    <iframe id="chatf" title="Chatt"></iframe>
+    <iframe id="chatf" title="Chat"></iframe>
   </div>
-  <button type="button" class="handle" id="tgTop" aria-label="Visa eller dölj toppraden"></button>
+  <button type="button" class="handle" id="tgTop" aria-label="Show or hide the top bar"></button>
 </main>
 <dialog id="setup">
-  <h3>Koppla ditt Twitch-konto</h3>
-  <p style="margin:0;color:var(--muted)">Twitch kräver att du skapar en gratis app en gång. Det tar ungefär två minuter.</p>
+  <h3>Connect your Twitch account</h3>
+  <p style="margin:0;color:var(--muted)">Twitch requires you to create a free app once. It takes about two minutes.</p>
   <ol>
-    <li>Gå till <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv/console/apps</a> och klicka på <b>Register Your Application</b>.</li>
-    <li>Välj valfritt namn. Skriv in den här adressen under <b>OAuth Redirect URLs</b> och klicka på Add: <code id="redir"></code></li>
-    <li>Category: <b>Website Integration</b>. Client Type: <b>Public</b>. Klicka på Create.</li>
-    <li>Klicka på <b>Manage</b> vid din nya app och kopiera <b>Client ID</b>.</li>
+    <li>Go to <a href="https://dev.twitch.tv/console/apps" target="_blank" rel="noopener">dev.twitch.tv/console/apps</a> and click <b>Register Your Application</b>.</li>
+    <li>Pick any name. Enter this address under <b>OAuth Redirect URLs</b> and click Add: <code id="redir"></code></li>
+    <li>Category: <b>Website Integration</b>. Client Type: <b>Public</b>. Click Create.</li>
+    <li>Click <b>Manage</b> next to your new app and copy the <b>Client ID</b>.</li>
   </ol>
-  <label for="cid">Klistra in Client ID här</label>
+  <label for="cid">Paste your Client ID here</label>
   <input id="cid" autocomplete="off" spellcheck="false">
   <div class="row">
-    <button type="button" class="btn" id="cancel">Avbryt</button>
-    <button type="button" class="btn tw" id="savecid">Spara och logga in</button>
+    <button type="button" class="btn" id="cancel">Cancel</button>
+    <button type="button" class="btn tw" id="savecid">Save and log in</button>
   </div>
 </dialog>
 <script>
@@ -205,7 +205,7 @@ dialog input{width:100%;margin:6px 0 14px}
   function renderList(){
     list.textContent="";
     if(!state.streamers.length){
-      var p=document.createElement("p");p.className="hint";p.textContent="Inga streamers ännu. Lägg till en i fältet högst upp.";
+      var p=document.createElement("p");p.className="hint";p.textContent="No streamers yet. Add one using the field at the top.";
       list.appendChild(p);return;
     }
     state.streamers.forEach(function(x){
@@ -216,7 +216,7 @@ dialog input{width:100%;margin:6px 0 14px}
       b.querySelector(".n").textContent=x.n;
       b.addEventListener("click",function(){toggle(x)});
       var d=document.createElement("button");d.type="button";d.className="del";d.textContent="×";
-      d.setAttribute("aria-label","Ta bort "+x.n);
+      d.setAttribute("aria-label","Remove "+x.n);
       d.addEventListener("click",function(){remove(x)});
       row.appendChild(b);row.appendChild(d);list.appendChild(row);
     });
@@ -233,7 +233,7 @@ dialog input{width:100%;margin:6px 0 14px}
       cache={};
       grid.style.gridTemplateColumns="1fr";grid.style.gridTemplateRows="1fr";
       var e=document.createElement("div");e.className="empty";
-      e.innerHTML="<div><b>Inga streams valda</b>Lägg till en streamer och klicka på namnet i listan för att börja titta.</div>";
+      e.innerHTML="<div><b>No streams selected</b>Add a streamer and click its name in the list to start watching.</div>";
       grid.appendChild(e);return;
     }
     var cols=n===1?1:n<=4?2:n<=9?3:4;
@@ -245,13 +245,13 @@ dialog input{width:100%;margin:6px 0 14px}
       if(!cell||!cell.parentNode){
         cell=document.createElement("div");cell.className="cell";cell.dataset.id=cid;
         var t=document.createElement("div");t.className="tag";
-        var cl=document.createElement("button");cl.type="button";cl.textContent="Stäng";
+        var cl=document.createElement("button");cl.type="button";cl.textContent="Close";
         cl.addEventListener("click",function(){toggle(x)});
-        var ch=document.createElement("button");ch.type="button";ch.textContent="Chatt";
+        var ch=document.createElement("button");ch.type="button";ch.textContent="Chat";
         ch.addEventListener("click",function(){openChat(id(x))});
         t.appendChild(ch);t.appendChild(cl);
         var f=document.createElement("iframe");
-        f.src=src(x);f.title=x.n+" på "+(x.p==="twitch"?"Twitch":"Kick");
+        f.src=src(x);f.title=x.n+" on "+(x.p==="twitch"?"Twitch":"Kick");
         f.allow="autoplay; fullscreen; picture-in-picture";f.allowFullscreen=true;
         cell.appendChild(t);cell.appendChild(f);cache[cid]=cell;
       }
@@ -346,34 +346,34 @@ dialog input{width:100%;margin:6px 0 14px}
 
   function api(path){
     return fetch("https://api.twitch.tv/helix/"+path,{headers:{"Authorization":"Bearer "+auth.token,"Client-Id":auth.cid||cid}}).then(function(r){
-      if(r.status===401){logout();throw new Error("Inloggningen har gått ut. Logga in igen.");}
-      if(!r.ok)throw new Error("Twitch svarade med fel "+r.status+".");
+      if(r.status===401){logout();throw new Error("Your login has expired. Please log in again.");}
+      if(!r.ok)throw new Error("Twitch returned error "+r.status+".");
       return r.json();
     });
   }
   function loadFollowed(){
     if(!auth)return;
     var p=auth.id?Promise.resolve():api("users").then(function(d){
-      var u=d.data&&d.data[0];if(!u)throw new Error("Kunde inte hämta ditt konto.");
+      var u=d.data&&d.data[0];if(!u)throw new Error("Could not fetch your account.");
       auth.id=u.id;auth.login=u.display_name;saveAuth();
     });
     p.then(function(){return api("streams/followed?user_id="+auth.id+"&first=100");})
      .then(function(d){followed=d.data||[];followedErr="";renderAuth();renderFollowed();})
-     .catch(function(e){if(auth){followedErr=e.message||"Något gick fel.";renderFollowed();}});
+     .catch(function(e){if(auth){followedErr=e.message||"Something went wrong.";renderFollowed();}});
   }
   setInterval(loadFollowed,60000);
 
   function renderAuth(){
     var box=$("auth");box.textContent="";
-    var gear=document.createElement("button");gear.type="button";gear.className="btn";gear.textContent="Twitch-inställningar";
+    var gear=document.createElement("button");gear.type="button";gear.className="btn";gear.textContent="Twitch settings";
     gear.addEventListener("click",openSetup);
     if(auth){
-      var me=document.createElement("span");me.className="me";me.textContent=auth.login?"Inloggad som "+auth.login:"Inloggad";
-      var out=document.createElement("button");out.type="button";out.className="btn";out.textContent="Logga ut";
+      var me=document.createElement("span");me.className="me";me.textContent=auth.login?"Logged in as "+auth.login:"Logged in";
+      var out=document.createElement("button");out.type="button";out.className="btn";out.textContent="Log out";
       out.addEventListener("click",logout);
       box.appendChild(me);box.appendChild(out);
     }else{
-      var b=document.createElement("button");b.type="button";b.className="btn tw";b.textContent="Logga in med Twitch";
+      var b=document.createElement("button");b.type="button";b.className="btn tw";b.textContent="Log in with Twitch";
       b.addEventListener("click",login);
       box.appendChild(b);box.appendChild(gear);
     }
@@ -390,14 +390,14 @@ dialog input{width:100%;margin:6px 0 14px}
     box.hidden=false;fl.textContent="";
     function hint(t){var p=document.createElement("p");p.className="hint";p.textContent=t;fl.appendChild(p);}
     if(followedErr){hint(followedErr);return;}
-    if(!followed.length){hint("Ingen du följer är live just nu.");return;}
+    if(!followed.length){hint("No one you follow is live right now.");return;}
     followed.forEach(function(s){
       var b=document.createElement("button");b.type="button";b.className="live";
       b.setAttribute("aria-pressed",isOn({p:"twitch",n:s.user_login}));
       b.innerHTML='<span class="redd"></span><span class="info"><div class="nm"></div><div class="gm"></div></span><span class="vw"></span>';
       b.querySelector(".nm").textContent=s.user_name;
       b.querySelector(".gm").textContent=s.game_name||"";
-      b.querySelector(".vw").textContent=(s.viewer_count||0).toLocaleString("sv-SE");
+      b.querySelector(".vw").textContent=(s.viewer_count||0).toLocaleString("en-US");
       b.addEventListener("click",function(){pickLive(s)});
       fl.appendChild(b);
     });
