@@ -37,7 +37,7 @@ form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 input{font:inherit;padding:8px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text);min-width:0;width:200px}
 .add{font:inherit;font-weight:600;padding:8px 16px;border:0;border-radius:8px;background:var(--text);color:var(--bg);cursor:pointer}
 button:focus-visible,input:focus-visible{outline:2px solid var(--twitch);outline-offset:2px}
-main{flex:1;display:flex;min-height:0}
+main{flex:1;display:flex;min-height:0;position:relative}
 aside{width:250px;flex:none;border-right:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:12px}
 aside h2{font-size:13px;margin:0 0 4px;color:var(--muted);font-weight:600}
 aside p.hint{font-size:12px;color:var(--muted);margin:0 0 10px}
@@ -57,6 +57,19 @@ aside p.hint{font-size:12px;color:var(--muted);margin:0 0 10px}
 .tag button{border:0;border-radius:6px;padding:4px 8px;font:inherit;font-size:12px;background:rgba(0,0,0,.75);color:#fff;cursor:pointer}
 .empty{grid-column:1/-1;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:24px}
 .empty b{display:block;color:var(--text);font-size:17px;margin-bottom:6px}
+.hwrap{position:relative;width:0;flex:none;z-index:6}
+.handle{position:absolute;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--panel);color:var(--text);cursor:pointer;opacity:.85;font:inherit;font-size:12px;line-height:1;padding:0}
+.handle:hover{opacity:1}
+#tgSide{left:0;top:50%;transform:translateY(-50%);width:16px;height:56px;border-radius:0 8px 8px 0;border-left:0}
+#tgTop{top:0;left:50%;transform:translateX(-50%);width:56px;height:16px;border-radius:0 0 8px 8px;border-top:0;z-index:6}
+body.hide-top header{display:none}
+body.hide-side aside{display:none}
+#chat{width:340px;flex:none;display:none;flex-direction:column;border-left:1px solid var(--line);background:var(--panel);min-height:0}
+#chat.on{display:flex}
+#chat .ch{display:flex;gap:6px;align-items:center;padding:8px;border-bottom:1px solid var(--line)}
+#chat select{flex:1;min-width:0;font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--text)}
+#chat iframe{flex:1;width:100%;border:0;min-height:0;background:var(--panel)}
+@media (hover:none){.cell .tag{opacity:1}}
 .spacer{flex:1}
 .auth{display:flex;gap:8px;align-items:center}
 .me{font-size:13px;color:var(--muted)}
@@ -83,6 +96,9 @@ dialog input{width:100%;margin:6px 0 14px}
   main{flex-direction:column}
   aside{width:100%;border-right:0;border-bottom:1px solid var(--line);max-height:34%}
   input{width:140px}
+  #chat{width:100%;height:45%;border-left:0;border-top:1px solid var(--line)}
+  .hwrap{width:100%;height:0}
+  #tgSide{left:50%;top:0;transform:translate(-50%,-50%);width:56px;height:16px;border-radius:8px;border:1px solid var(--line)}
 }
 </style>
 </head>
@@ -110,7 +126,16 @@ dialog input{width:100%;margin:6px 0 14px}
     <p class="hint">Klicka på ett namn för att visa eller dölja streamen.</p>
     <div id="list"></div>
   </aside>
+  <div class="hwrap"><button type="button" class="handle" id="tgSide" aria-label="Visa eller dölj listan till vänster"></button></div>
   <section id="grid" aria-live="polite"></section>
+  <div id="chat">
+    <div class="ch">
+      <select id="chatsel" aria-label="Välj chatt"></select>
+      <button type="button" class="btn" id="chatx" aria-label="Stäng chatten">Stäng</button>
+    </div>
+    <iframe id="chatf" title="Chatt"></iframe>
+  </div>
+  <button type="button" class="handle" id="tgTop" aria-label="Visa eller dölj toppraden"></button>
 </main>
 <dialog id="setup">
   <h3>Koppla ditt Twitch-konto</h3>
@@ -134,6 +159,7 @@ dialog input{width:100%;margin:6px 0 14px}
   var state={streamers:[],active:[]};
   var platform="twitch";
   try{var s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&s.streamers)state=s;}catch(e){}
+  state.ui=state.ui||{top:true,side:true};state.chat=state.chat||"";
   function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
   var host=location.hostname||"localhost";
   var $=function(id){return document.getElementById(id)};
@@ -221,7 +247,9 @@ dialog input{width:100%;margin:6px 0 14px}
         var t=document.createElement("div");t.className="tag";
         var cl=document.createElement("button");cl.type="button";cl.textContent="Stäng";
         cl.addEventListener("click",function(){toggle(x)});
-        t.appendChild(cl);
+        var ch=document.createElement("button");ch.type="button";ch.textContent="Chatt";
+        ch.addEventListener("click",function(){openChat(id(x))});
+        t.appendChild(ch);t.appendChild(cl);
         var f=document.createElement("iframe");
         f.src=src(x);f.title=x.n+" på "+(x.p==="twitch"?"Twitch":"Kick");
         f.allow="autoplay; fullscreen; picture-in-picture";f.allowFullscreen=true;
@@ -230,6 +258,45 @@ dialog input{width:100%;margin:6px 0 14px}
       grid.appendChild(cell);
     });
     Array.prototype.slice.call(grid.querySelectorAll(".empty")).forEach(function(e){grid.removeChild(e)});
+  }
+
+  /* ---------- Paneler och chatt ---------- */
+  function applyUi(){
+    document.body.classList.toggle("hide-top",!state.ui.top);
+    document.body.classList.toggle("hide-side",!state.ui.side);
+    $("tgTop").textContent=state.ui.top?"▴":"▾";
+    $("tgSide").textContent=state.ui.side?"◂":"▸";
+  }
+  $("tgTop").addEventListener("click",function(){state.ui.top=!state.ui.top;save();applyUi();});
+  $("tgSide").addEventListener("click",function(){state.ui.side=!state.ui.side;save();applyUi();});
+
+  function chatSrc(x){
+    if(x.p==="twitch"){
+      var dark=window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches;
+      return "https://www.twitch.tv/embed/"+encodeURIComponent(x.n)+"/chat?parent="+encodeURIComponent(host)+(dark?"&darkpopout":"");
+    }
+    return "https://kick.com/popout/"+encodeURIComponent(x.n)+"/chat";
+  }
+  function openChat(cid){state.chat=cid;save();renderChat();}
+  $("chatx").addEventListener("click",function(){state.chat="";save();renderChat();});
+  $("chatsel").addEventListener("change",function(){state.chat=this.value;save();renderChat();});
+  function renderChat(){
+    var pane=$("chat"),act=state.streamers.filter(isOn);
+    var cur=act.filter(function(x){return id(x)===state.chat})[0];
+    if(!cur){
+      pane.classList.remove("on");
+      if(pane.dataset.id){pane.dataset.id="";$("chatf").src="about:blank";}
+      return;
+    }
+    pane.classList.add("on");
+    var sel=$("chatsel");sel.textContent="";
+    act.forEach(function(x){
+      var o=document.createElement("option");o.value=id(x);
+      o.textContent=x.n+" ("+(x.p==="twitch"?"Twitch":"Kick")+")";
+      if(id(x)===state.chat)o.selected=true;
+      sel.appendChild(o);
+    });
+    if(pane.dataset.id!==state.chat){pane.dataset.id=state.chat;$("chatf").src=chatSrc(cur);}
   }
 
   /* ---------- Twitch-inloggning ---------- */
@@ -336,8 +403,8 @@ dialog input{width:100%;margin:6px 0 14px}
     });
   }
 
-  function render(){renderList();renderGrid();renderFollowed();}
-  render();renderAuth();loadFollowed();
+  function render(){renderList();renderGrid();renderFollowed();renderChat();}
+  applyUi();render();renderAuth();loadFollowed();
 })();
 </script>
 </body>
